@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polynomial Ring Calculator — PDA · TM Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--surface:#111118;--surface2:#1a1a26;--border:#2a2a40;
+  --accent:#00ffcc;--accent2:#ff6b35;--accent3:#a855f7;--accent4:#3b82f6;
+  --text:#e8e8f0;--dim:#6b6b8a;--error:#ff4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;
+  display:flex;flex-direction:column;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:0.35;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+}
+
+/* ── HEADER ── */
+header{
+  padding:0.85rem 1.8rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:baseline;gap:1.2rem;flex-wrap:wrap;flex-shrink:0;
+}
+h1{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-0.02em;color:var(--accent);}
+.subtitle{font-size:0.6rem;color:var(--dim);letter-spacing:0.14em;text-transform:uppercase;}
+
+/* ── 3-COLUMN LAYOUT ── */
+.layout{
+  display:grid;
+  grid-template-columns:210px 1fr 220px;
+  flex:1;min-height:0;overflow:hidden;
+}
+
+/* ── SHARED SECTION CHROME ── */
+.sec{padding:1rem 1.3rem;border-bottom:1px solid var(--border);}
+.sec-title{
+  font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:0.85rem;
+  display:flex;align-items:center;gap:0.5rem;
+}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ── LEFT SIDEBAR ── */
+.sidebar-left{
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.ftab{
+  padding:0.28rem 0.65rem;border:1px solid var(--border);background:transparent;
+  color:var(--dim);font-family:'Space Mono',monospace;font-size:0.68rem;
+  cursor:pointer;transition:all 0.15s;
+  margin-right:0.3rem;margin-bottom:0.3rem;display:inline-block;
+}
+.ftab.active{border-color:var(--accent);color:var(--accent);background:rgba(0,255,204,0.06);}
+.ftab:hover:not(.active){border-color:var(--dim);color:var(--text);}
+.op-btn{
+  display:block;width:100%;
+  padding:0.35rem 0.7rem;
+  border:1px solid var(--border);background:transparent;
+  color:var(--dim);font-family:'Space Mono',monospace;font-size:0.72rem;
+  cursor:pointer;transition:all 0.15s;text-align:left;margin-bottom:0.32rem;
+}
+.op-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,0.07);}
+.op-btn:hover:not(.active){border-color:var(--dim);color:var(--text);}
+
+/* ── RIGHT SIDEBAR ── */
+.sidebar-right{
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+/* PDA stack container takes remaining height */
+.stack-sec{
+  display:flex;flex-direction:column;
+  flex:1;min-height:0;padding:1rem 1.3rem;
+  border-bottom:1px solid var(--border);
+  overflow:hidden;
+}
+.pda-stack{
+  display:flex;flex-direction:column-reverse;
+  gap:3px;flex:1;min-height:0;overflow-y:auto;
+  padding-right:2px;
+}
+.stk-frame{
+  background:var(--surface2);border:1px solid var(--border);
+  padding:0.42rem 0.75rem;font-size:0.76rem;color:var(--text);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+  transition:border-color 0.2s,background 0.2s,color 0.2s;
+  animation:sIn 0.2s ease;
+}
+@keyframes sIn{from{transform:translateX(8px);opacity:0}to{transform:translateX(0);opacity:1}}
+.stk-frame.top{
+  border-color:var(--accent3);color:var(--accent3);
+  background:rgba(168,85,247,0.1);
+}
+.stk-tag{font-size:0.55rem;color:var(--dim);margin-left:0.4rem;flex-shrink:0;}
+/* examples below stack */
+.ex-sec{padding:1rem 1.3rem;overflow-y:auto;flex-shrink:0;}
+.ex-chip{
+  font-size:0.65rem;padding:0.3rem 0.6rem;background:var(--surface2);
+  border:1px solid var(--border);color:var(--dim);cursor:pointer;
+  transition:all 0.15s;text-align:left;font-family:'Space Mono',monospace;
+  display:block;width:100%;margin-bottom:0.3rem;
+}
+.ex-chip:hover{border-color:var(--accent3);color:var(--accent3);}
+
+/* ── MAIN PANEL ── */
+.main{display:flex;flex-direction:column;overflow:hidden;}
+
+/* Input */
+.input-sec{padding:1rem 1.5rem;border-bottom:1px solid var(--border);flex-shrink:0;}
+.input-row{display:flex;gap:0.9rem;align-items:flex-end;flex-wrap:wrap;}
+.igrp{display:flex;flex-direction:column;gap:0.3rem;flex:1;min-width:140px;}
+.ilbl{font-size:0.57rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;}
+.poly-input{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:0.82rem;
+  padding:0.48rem 0.7rem;width:100%;outline:none;transition:border-color 0.15s;
+}
+.poly-input:focus{border-color:var(--accent3);box-shadow:0 0 0 2px rgba(168,85,247,0.1);}
+.poly-input::placeholder{color:var(--dim);opacity:0.5;}
+.compute-btn{
+  padding:0.48rem 1.3rem;background:var(--accent);color:var(--bg);
+  border:none;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;
+  letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;align-self:flex-end;flex-shrink:0;
+}
+.compute-btn:hover{background:#00e6b8;transform:translateY(-1px);}
+.compute-btn:active{transform:translateY(0);}
+
+/* Result */
+.result-banner{
+  padding:0.85rem 1.5rem;background:rgba(0,255,204,0.04);
+  border-bottom:1px solid var(--accent);display:none;flex-shrink:0;
+}
+.result-banner.visible{display:block;animation:fadeUp 0.3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.result-lbl{font-size:0.56rem;color:var(--dim);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.22rem;}
+.result-poly{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:700;color:var(--accent);}
+.result-meta{font-size:0.62rem;color:var(--dim);margin-top:0.14rem;}
+
+/* Ctrl bar */
+.ctrl-bar{
+  padding:0.48rem 1.5rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:1.2rem;background:var(--surface);flex-shrink:0;flex-wrap:wrap;
+}
+.ctrl-lbl{font-size:0.56rem;color:var(--dim);letter-spacing:0.08em;text-transform:uppercase;}
+input[type=range]{-webkit-appearance:none;width:78px;height:3px;background:var(--border);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:var(--accent);cursor:pointer;}
+.step-ctr{font-size:0.67rem;color:var(--accent);}
+.curr-state-badge{
+  font-size:0.64rem;padding:0.18rem 0.55rem;
+  border:1px solid var(--accent);color:var(--accent);margin-left:auto;
+  letter-spacing:0.05em;
+}
+
+/* ── OUTPUT TABS ── */
+.out-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
+.out-tab{
+  padding:0.6rem 1.2rem;font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;
+  background:none;border-top:none;border-left:none;border-right:none;font-family:'Space Mono',monospace;
+}
+.out-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.out-tab:hover:not(.active){color:var(--text);}
+.tab-panel{display:none;flex:1;overflow-y:auto;flex-direction:column;min-height:0;}
+.tab-panel.active{display:flex;}
+
+/* TM States */
+.states-panel{padding:1.1rem 1.5rem;flex:1;overflow-y:auto;}
+.state-wrap{display:flex;flex-wrap:wrap;gap:0.38rem;align-items:center;margin-bottom:1rem;}
+.state-node{
+  width:44px;height:44px;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.58rem;color:var(--dim);transition:all 0.25s;cursor:default;flex-shrink:0;
+}
+.state-node.active{
+  border-color:var(--accent);color:var(--accent);
+  box-shadow:0 0 18px rgba(0,255,204,0.55);
+  animation:pulse 1s ease-in-out infinite;
+}
+.state-node.visited{border-color:var(--accent3);color:var(--accent3);background:rgba(168,85,247,0.08);}
+.state-node.accept{border-width:3px;}
+.state-node.err-s{border-color:var(--error);color:var(--error);}
+@keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(0,255,204,0.4)}50%{box-shadow:0 0 26px rgba(0,255,204,0.8)}}
+.state-arrow{font-size:0.55rem;color:var(--border);flex-shrink:0;}
+.state-legend{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:0.4rem 1rem;margin-top:0.6rem;
+}
+.sleg{font-size:0.65rem;color:var(--dim);line-height:1.65;}
+.sleg .acc{color:var(--accent);}
+.sleg .err{color:var(--error);}
+.state-meta-row{
+  display:flex;gap:1.5rem;margin-top:1rem;padding-top:1rem;
+  border-top:1px solid var(--border);flex-wrap:wrap;
+}
+.smeta{font-size:0.62rem;color:var(--dim);}
+.smeta b{color:var(--text);font-size:0.72rem;}
+
+/* Transitions */
+.trans-panel{flex:1;overflow-y:auto;}
+.trans-table{width:100%;border-collapse:collapse;font-size:0.68rem;}
+.trans-table th{
+  background:var(--surface2);padding:0.4rem 0.75rem;text-align:left;
+  color:var(--dim);letter-spacing:0.07em;text-transform:uppercase;
+  border-bottom:1px solid var(--border);font-weight:400;
+  position:sticky;top:0;z-index:1;font-size:0.65rem;
+}
+.trans-table td{
+  padding:0.38rem 0.75rem;border-bottom:1px solid rgba(42,42,64,0.4);
+  color:var(--text);vertical-align:top;font-size:0.68rem;
+}
+.trans-table tr.hi td{background:rgba(0,255,204,0.06);color:var(--accent);}
+.trans-table tr:hover td{background:var(--surface2);}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border)}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Polynomial Ring Calculator</h1>
+  <span class="subtitle">PDA · TM · 30-State Engine</span>
+</header>
+
+<div class="layout">
+
+  <!-- ══ LEFT SIDEBAR: Field + Operations ══ -->
+  <div class="sidebar-left">
+
+    <div class="sec">
+      <div class="sec-title">Field</div>
+      <button class="ftab" onclick="setField('Q',this)">ℚ</button>
+      <button class="ftab active" onclick="setField('R',this)">ℝ</button>
+      <button class="ftab" onclick="setField('Z',this)">ℤ</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Operation</div>
+      <button class="op-btn active" onclick="setOp('add',this)">+ Add</button>
+      <button class="op-btn" onclick="setOp('sub',this)">− Subtract</button>
+      <button class="op-btn" onclick="setOp('mul',this)">× Multiply</button>
+      <button class="op-btn" onclick="setOp('div',this)">÷ Divide</button>
+      <button class="op-btn" onclick="setOp('mod',this)">mod Remainder</button>
+      <button class="op-btn" onclick="setOp('gcd',this)">GCD</button>
+      <button class="op-btn" onclick="setOp('diff',this)">d/dx Differentiate</button>
+      <button class="op-btn" onclick="setOp('int',this)">∫ Integrate</button>
+    </div>
+
+  </div>
+
+  <!-- ══ MAIN ══ -->
+  <div class="main">
+
+    <div class="input-sec">
+      <div class="input-row">
+        <div class="igrp">
+          <span class="ilbl">P(x)</span>
+          <input class="poly-input" id="poly-a" placeholder="x^3 - 6x^2 + 11x - 6" />
+        </div>
+        <div class="igrp" id="poly-b-group">
+          <span class="ilbl" id="poly-b-label">Q(x)</span>
+          <input class="poly-input" id="poly-b" placeholder="x^2 - 3x + 2" />
+        </div>
+        <button class="compute-btn" onclick="compute()">▶ Compute</button>
+      </div>
+    </div>
+
+    <div class="result-banner" id="result-banner">
+      <div class="result-lbl">Result</div>
+      <div class="result-poly" id="result-poly">—</div>
+      <div class="result-meta" id="result-meta"></div>
+    </div>
+
+    <div class="ctrl-bar">
+      <span class="ctrl-lbl">Speed</span>
+      <input type="range" id="speed-slider" min="50" max="1000" value="420" step="50"/>
+      <span class="step-ctr" id="step-ctr">Steps: 0</span>
+      <span style="font-size:0.6rem;color:var(--dim)">Field: <b id="info-field" style="color:var(--text)">ℝ</b></span>
+      <span style="font-size:0.6rem;color:var(--dim)">Op: <b id="info-op" style="color:var(--text)">add</b></span>
+      <span style="font-size:0.6rem;color:var(--dim)">Visited: <b id="info-visited" style="color:var(--text)">0</b></span>
+      <div class="curr-state-badge" id="curr-state">q₀</div>
+    </div>
+
+    <div class="out-tabs">
+      <button class="out-tab active" onclick="switchTab('states',this)">TM States (30)</button>
+      <button class="out-tab" onclick="switchTab('trans',this)">Transition Table</button>
+    </div>
+
+    <!-- States tab -->
+    <div class="tab-panel active" id="tab-states">
+      <div class="states-panel">
+        <div class="state-wrap" id="state-display"></div>
+        <div class="state-legend" id="state-legend"></div>
+        <div class="state-meta-row">
+          <div class="smeta">Active<br><b id="info-active">—</b></div>
+          <div class="smeta">States visited<br><b id="info-vis2">0</b></div>
+          <div class="smeta">Total steps<br><b id="info-steps">0</b></div>
+          <div class="smeta">Operation<br><b id="info-op2">—</b></div>
+          <div class="smeta">Field<br><b id="info-field2">ℝ</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transitions tab -->
+    <div class="tab-panel" id="tab-trans">
+      <div class="trans-panel">
+        <table class="trans-table">
+          <thead>
+            <tr><th>State</th><th>Read</th><th>Write</th><th>Move</th><th>Next</th><th>Description</th></tr>
+          </thead>
+          <tbody id="trans-tbody">
+            <tr><td colspan="6" style="color:var(--dim);text-align:center;padding:1.8rem;font-size:0.7rem">Run a computation to populate</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- ══ RIGHT SIDEBAR: PDA Stack + Examples ══ -->
+  <div class="sidebar-right">
+
+    <div class="stack-sec">
+      <div class="sec-title">PDA Stack</div>
+      <div class="pda-stack" id="pda-stack">
+        <div class="stk-frame"><span>⊥</span><span class="stk-tag">Z₀</span></div>
+      </div>
+    </div>
+
+    <div class="ex-sec">
+      <div class="sec-title">Examples</div>
+      <button class="ex-chip" onclick="loadEx('mod')">Poly mod (x²+2x+1) mod (x²+1)</button>
+      <button class="ex-chip" onclick="loadEx('gcd')">GCD: x³−1 and x²−1</button>
+      <button class="ex-chip" onclick="loadEx('diff')">Diff: d/dx of x⁴−3x²+2x</button>
+      <button class="ex-chip" onclick="loadEx('int')">Integrate: ∫ 3x²+2x+1 dx</button>
+      <button class="ex-chip" onclick="loadEx('mul')">Multiply (2x²+3x+4)(x+5)</button>
+      <button class="ex-chip" onclick="loadEx('div')">Divide (x³−1)÷(x−1)</button>
+    </div>
+
+  </div>
+
+</div><!-- /layout -->
+
+<script>
+'use strict';
+
+// ── FIELD ARITHMETIC ──────────────────────────
+function gcd2(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function normF(n,d){if(d<0){n=-n;d=-d;}var g=gcd2(Math.abs(n),d);return[n/g,d/g];}
+function addF(a,b){return normF(a[0]*b[1]+b[0]*a[1],a[1]*b[1]);}
+function subF(a,b){return normF(a[0]*b[1]-b[0]*a[1],a[1]*b[1]);}
+function mulF(a,b){return normF(a[0]*b[0],a[1]*b[1]);}
+function divF(a,b){return normF(a[0]*b[1],a[1]*b[0]);}
+
+function Field(type){this.type=type;}
+Field.prototype={
+  add:function(a,b){return this.type==='Q'?addF(a,b):a+b;},
+  sub:function(a,b){return this.type==='Q'?subF(a,b):a-b;},
+  mul:function(a,b){return this.type==='Q'?mulF(a,b):a*b;},
+  div:function(a,b){
+    if(this.type==='Q')return divF(a,b);
+    if(b===0||b===null)return null;
+    return a/b;
+  },
+  zero:function(){return this.type==='Q'?[0,1]:0;},
+  one:function(){return this.type==='Q'?[1,1]:1;},
+  isZero:function(a){return this.type==='Q'?a[0]===0:(a===0||a===-0);},
+  fmt:function(a){
+    if(this.type==='Q'){if(a[1]===1)return String(a[0]);return a[0]+'/'+a[1];}
+    if(this.type==='R'){var r=Math.round(a*1e8)/1e8;return String(r);}
+    return String(a);
+  }
+};
+
+// ── POLYNOMIAL ────────────────────────────────
+function Poly(coeffs,field){
+  this.field=field;this.coeffs=coeffs.slice();this.normalize();
+}
+Poly.prototype={
+  normalize:function(){
+    while(this.coeffs.length>1&&this.field.isZero(this.coeffs[this.coeffs.length-1]))
+      this.coeffs.pop();
+  },
+  degree:function(){return this.coeffs.length-1;},
+  leadCoeff:function(){return this.coeffs[this.degree()];},
+  isZero:function(){return this.coeffs.length===1&&this.field.isZero(this.coeffs[0]);},
+  add:function(o){
+    var len=Math.max(this.coeffs.length,o.coeffs.length),res=[],z=this.field.zero();
+    for(var i=0;i<len;i++)
+      res.push(this.field.add(i<this.coeffs.length?this.coeffs[i]:z,i<o.coeffs.length?o.coeffs[i]:z));
+    return new Poly(res,this.field);
+  },
+  sub:function(o){
+    var len=Math.max(this.coeffs.length,o.coeffs.length),res=[],z=this.field.zero();
+    for(var i=0;i<len;i++)
+      res.push(this.field.sub(i<this.coeffs.length?this.coeffs[i]:z,i<o.coeffs.length?o.coeffs[i]:z));
+    return new Poly(res,this.field);
+  },
+  mul:function(o){
+    var res=[];
+    for(var k=0;k<=this.degree()+o.degree();k++)res.push(this.field.zero());
+    for(var i=0;i<=this.degree();i++)
+      for(var j=0;j<=o.degree();j++)
+        res[i+j]=this.field.add(res[i+j],this.field.mul(this.coeffs[i],o.coeffs[j]));
+    return new Poly(res,this.field);
+  },
+  divmod:function(d){
+    if(d.isZero())return null;
+    var rem=new Poly(this.coeffs.slice(),this.field);
+    var qc=[];
+    for(var k=0;k<Math.max(0,this.degree()-d.degree()+1);k++)qc.push(this.field.zero());
+    while(!rem.isZero()&&rem.degree()>=d.degree()){
+      var dd=rem.degree()-d.degree();
+      var c=this.field.div(rem.leadCoeff(),d.leadCoeff());
+      if(c===null)return null;
+      qc[dd]=c;
+      var sub=[];
+      for(var k2=0;k2<dd+d.coeffs.length;k2++)sub.push(this.field.zero());
+      for(var i=0;i<=d.degree();i++)sub[i+dd]=this.field.mul(c,d.coeffs[i]);
+      rem=rem.sub(new Poly(sub,this.field));
+    }
+    return[new Poly(qc,this.field),rem];
+  },
+  gcd:function(o){
+    var a=this,b=o;
+    while(!b.isZero()){var r=a.divmod(b);if(!r)break;var tmp=b;b=r[1];a=tmp;}
+    return a;
+  },
+  differentiate:function(){
+    if(this.degree()===0)return new Poly([this.field.zero()],this.field);
+    var res=[];
+    for(var i=1;i<this.coeffs.length;i++){
+      var ni=this.field.type==='Q'?[i,1]:i;
+      res.push(this.field.mul(this.coeffs[i],ni));
+    }
+    return new Poly(res,this.field);
+  },
+  integrate:function(){
+    var res=[this.field.zero()];
+    for(var i=0;i<this.coeffs.length;i++){
+      var n1=i+1;
+      var dv=this.field.type==='Q'?[n1,1]:n1;
+      var c=this.field.div(this.coeffs[i],dv);
+      res.push(c!==null?c:this.field.zero());
+    }
+    return new Poly(res,this.field);
+  },
+  toString:function(){
+    if(this.isZero())return'0';
+    var terms=[];
+    for(var i=this.coeffs.length-1;i>=0;i--){
+      var c=this.coeffs[i];
+      if(this.field.isZero(c))continue;
+      var cs=this.field.fmt(c);
+      var t;
+      if(i===0)t=cs;
+      else if(i===1)t=(cs==='1'?'':(cs==='-1'?'-':cs))+'x';
+      else t=(cs==='1'?'':(cs==='-1'?'-':cs))+'x^'+i;
+      terms.push(t);
+    }
+    if(!terms.length)return'0';
+    return terms.join(' + ').replace(/\+ -/g,'- ');
+  }
+};
+
+// ── PARSER ────────────────────────────────────
+function parsePoly(str,field){
+  str=str.trim().replace(/\s+/g,'');
+  var coeffs={},terms=[],cur='';
+  for(var i=0;i<str.length;i++){
+    if((str[i]==='+'||str[i]==='-')&&i>0){terms.push(cur);cur=str[i];}
+    else cur+=str[i];
+  }
+  if(cur)terms.push(cur);
+  terms.forEach(function(t){
+    if(!t||t==='+')return;
+    t=t.trim();
+    var coeff,exp;
+    if(t.indexOf('x')>=0){
+      var xi=t.indexOf('x');
+      var cs=t.substring(0,xi);
+      if(cs===''||cs==='+')cs='1';else if(cs==='-')cs='-1';
+      var es='1';
+      if(xi<t.length-1&&t[xi+1]==='^')es=t.substring(xi+2);
+      coeff=parseC(cs,field);exp=parseInt(es)||1;
+    }else{coeff=parseC(t,field);exp=0;}
+    if(coeffs[exp]===undefined)coeffs[exp]=field.zero();
+    coeffs[exp]=field.add(coeffs[exp],coeff);
+  });
+  var maxD=Math.max.apply(null,[0].concat(Object.keys(coeffs).map(Number)));
+  var arr=[];
+  for(var d=0;d<=maxD;d++)arr.push(coeffs[d]!==undefined?coeffs[d]:field.zero());
+  return new Poly(arr,field);
+}
+function parseC(s,field){
+  s=s.trim();
+  if(field.type==='Q'){
+    if(s.indexOf('/')>=0){var p=s.split('/');return normF(parseInt(p[0]),parseInt(p[1]));}
+    var n=parseFloat(s);
+    if(Number.isInteger(n))return[n,1];
+    return normF(Math.round(n*1000),1000);
+  }
+  return parseFloat(s)||0;
+}
+
+// ── 30 TM STATES ─────────────────────────────
+var S={
+  INIT:'q₀', SCAN:'q₁',  TOK:'q₂',   LEX:'q₃',
+  PDA:'q₄',  PDA2:'q₅',  VALID:'q₆', LOAD:'q₇',
+  ALIGN:'q₈',ARITH:'q₉', REDUCE:'q₁₀',CARRY:'q₁₁',
+  BORROW:'q₁₂',ACCUM:'q₁₃',PARTIAL:'q₁₄',
+  DIV_A:'q₁₅',DIV_S:'q₁₆',DIV_Q:'q₁₇',DIV_R:'q₁₈',
+  GCD_A:'q₁₉',GCD_B:'q₂₀',GCD_N:'q₂₁',
+  DIFF:'q₂₂',DIFF_W:'q₂₃',
+  INT:'q₂₄', INT_W:'q₂₅',
+  NORM:'q₂₆',STRIP:'q₂₇',WRITE:'q₂₈',ACCEPT:'q₂₉',
+  ERR:'q_err'
+};
+var ALL_STATES=Object.values(S);
+var STATE_DESC={
+  'q₀':'Init','q₁':'Scan input','q₂':'Tokenize','q₃':'Lex tokens',
+  'q₄':'PDA parse','q₅':'PDA reduce','q₆':'Validate','q₇':'Load tapes',
+  'q₈':'Degree align','q₉':'Arithmetic','q₁₀':'Field reduce','q₁₁':'Carry prop',
+  'q₁₂':'Borrow prop','q₁₃':'Accumulate','q₁₄':'Partial product',
+  'q₁₅':'Div align','q₁₆':'Div subtract','q₁₇':'Div quotient','q₁₈':'Div remainder',
+  'q₁₉':'GCD step A','q₂₀':'GCD step B','q₂₁':'GCD normalize',
+  'q₂₂':'Differentiate','q₂₃':'Diff write',
+  'q₂₄':'Integrate','q₂₅':'Int write',
+  'q₂₆':'Normalize','q₂₇':'Strip zeros','q₂₈':'Write output','q₂₉':'ACCEPT',
+  'q_err':'REJECT'
+};
+
+// ── SIMULATION ────────────────────────────────
+function simulate(op,polyA,polyB,field){
+  var steps=[],stacks=[],trans=[];
+  // stack starts with just bottom-of-stack marker
+  var stack=[{label:'⊥',tag:'Z₀'}];
+
+  function pushStack(label,tag){
+    stack.push({label:label,tag:tag||''});
+  }
+  function popStack(){
+    if(stack.length>1)stack.pop();
+  }
+  function snapStack(){
+    return stack.map(function(x){return{label:x.label,tag:x.tag};});
+  }
+  function step(state,type,desc){
+    steps.push({state:state,type:type,desc:desc});
+    stacks.push(snapStack());
+  }
+  function tr(state,read,write,move,next,desc){
+    trans.push({state:state,read:read,write:write,move:move,next:next,desc:desc});
+  }
+  function fP(p){return '<span style="color:var(--accent3)">'+p.toString()+'</span>';}
+  function fH(v){return '<span style="color:var(--accent)">'+v+'</span>';}
+  function fV(v){return '<span style="color:var(--accent2)">'+field.fmt(v)+'</span>';}
+
+  // ── Phase 1: Init & Scan ──
+  step(S.INIT,'info','TM initialized. Field: '+fH(field.type)+'. Operation: '+fH(op.toUpperCase())+'. 30-state machine ready.');
+  tr(S.INIT,'▷','▷','R',S.SCAN,'Start symbol: move right to input');
+  step(S.SCAN,'tm','q₁: Scanning raw character stream: '+fP(polyA)+'.');
+  tr(S.SCAN,'digit','digit','R',S.SCAN,'Read digit, continue');
+  tr(S.SCAN,'letter','letter','R',S.SCAN,'Read letter');
+  tr(S.SCAN,'+/-','+/-','R',S.SCAN,'Read sign/operator');
+  tr(S.SCAN,'B','B','L',S.TOK,'Blank → tokenizer');
+
+  // ── Phase 2: Tokenize & Lex ──
+  step(S.TOK,'tm','q₂: Tokenizing '+fP(polyA)+'. Emitting coefficient-exponent tokens.');
+  tr(S.TOK,'coeff','CTOK','R',S.TOK,'Emit coefficient token');
+  tr(S.TOK,'x','VTOK','R',S.TOK,'Emit variable token');
+  tr(S.TOK,'^','ETOK','R',S.TOK,'Emit exponent token');
+  tr(S.TOK,'B','B','L',S.LEX,'Stream done → lexer');
+  step(S.LEX,'tm','q₃: Lexer grouping tokens into terminal symbols for CFG.');
+  tr(S.LEX,'CTOK','CONST','—',S.LEX,'Classify constant');
+  tr(S.LEX,'VTOK+ETOK','MONO','—',S.LEX,'Classify monomial cxⁿ');
+  tr(S.LEX,'B','B','—',S.PDA,'Lexing done → PDA');
+
+  // ── Phase 3: PDA Parse P(x) ──
+  pushStack('E→T+E','CFG');
+  pushStack('T→cxⁿ','CFG');
+  step(S.PDA,'pda','q₄: PDA pushing grammar rules. Parsing '+fP(polyA)+'.');
+  tr(S.PDA,'E','E','—',S.PDA,'Expand E → T+E | T');
+  tr(S.PDA,'T','T','—',S.PDA,'Expand T → c·xⁿ | c');
+  tr(S.PDA,'(','(','push',S.PDA,'Push open paren');
+  tr(S.PDA,')','pop','pop',S.PDA,'Pop: close paren scope');
+  pushStack('match','q₅');
+  step(S.PDA2,'pda','q₅: PDA reducing. Popping grammar frames per recognized term.');
+  tr(S.PDA2,'MONO','T','pop',S.PDA2,'Reduce monomial → T');
+  tr(S.PDA2,'CONST','T','pop',S.PDA2,'Reduce constant → T');
+  tr(S.PDA2,'T+T','E','pop',S.PDA2,'Reduce T+T → E');
+  tr(S.PDA2,'⊢','⊢','—',S.VALID,'Full derivation → PDA accepts');
+  popStack();popStack();popStack();
+  step(S.VALID,'pda','q₆: PDA accepted P(x). Degree='+fH(polyA.degree())+'. Array: '+fP(polyA)+'.');
+  tr(S.VALID,'ok','ok','—',S.LOAD,'Validated → load tapes');
+
+  if(polyB){
+    pushStack('E→T+E','CFG');
+    pushStack('T→cxⁿ','CFG');
+    step(S.PDA,'pda','q₄: PDA re-entered for Q(x)='+fP(polyB)+'.');
+    pushStack('match','q₅');
+    step(S.PDA2,'pda','q₅: Reducing Q(x) terms.');
+    popStack();popStack();popStack();
+    step(S.VALID,'pda','q₆: Q(x) validated. Degree='+fH(polyB.degree())+'. Both polynomials ready.');
+  }
+
+  // ── Phase 4: Load & Align ──
+  pushStack('T₁=P(x)','tape');
+  step(S.LOAD,'tm','q₇: Writing P(x) to T₁, Q(x) to T₂. T₃ initialized blank.');
+  tr(S.LOAD,'cᵢ','T1←cᵢ','R',S.LOAD,'Write coefficient i to T₁');
+  tr(S.LOAD,'B','B','—',S.ALIGN,'T₁ loaded → align');
+  step(S.ALIGN,'tm','q₈: Aligning heads at max degree '+fH(Math.max(polyA.degree(),polyB?polyB.degree():0))+'.');
+  tr(S.ALIGN,'dₕ','dₕ','L',S.ALIGN,'Move left to highest degree');
+  tr(S.ALIGN,'ok','ok','—',S.ARITH,'Aligned → arithmetic');
+  popStack();
+
+  var result=null,resultMeta='';
+
+  // ── ADD ──
+  if(op==='add'){
+    tr(S.ARITH,'aᵢ,bᵢ','sum','R',S.REDUCE,'Compute sum aᵢ+bᵢ');
+    tr(S.REDUCE,'sum','sum′','R',S.CARRY,'Field-reduce sum');
+    tr(S.CARRY,'carry','carry','L',S.ARITH,'Carry propagation');
+    tr(S.ARITH,'B','B','—',S.NORM,'All degrees done → normalize');
+    var md=Math.max(polyA.degree(),polyB.degree());
+    for(var i=md;i>=0;i--){
+      var z=field.zero();
+      var a=i<polyA.coeffs.length?polyA.coeffs[i]:z;
+      var b=i<polyB.coeffs.length?polyB.coeffs[i]:z;
+      var s=field.add(a,b);
+      pushStack('deg '+i,'align');
+      step(S.ALIGN,'tm','q₈: Align at degree '+fH(i)+'.');
+      step(S.ARITH,'tm','q₉: a['+i+']='+fV(a)+', b['+i+']='+fV(b)+'. Sum.');
+      step(S.REDUCE,'tm','q₁₀: '+fV(a)+' + '+fV(b)+' = '+fH(field.fmt(s))+' in '+field.type+'.');
+      step(S.CARRY,'tm','q₁₁: No carry. Write '+fH(field.fmt(s))+' → T₃['+i+'].');
+      popStack();
+    }
+    result=polyA.add(polyB);
+
+  // ── SUB ──
+  }else if(op==='sub'){
+    tr(S.ARITH,'aᵢ,bᵢ','diff','R',S.REDUCE,'Compute diff aᵢ−bᵢ');
+    tr(S.REDUCE,'diff','diff′','R',S.BORROW,'Field-reduce difference');
+    tr(S.BORROW,'borrow','borrow','L',S.ARITH,'Borrow propagation');
+    tr(S.ARITH,'B','B','—',S.NORM,'All degrees done → normalize');
+    var md2=Math.max(polyA.degree(),polyB.degree());
+    for(var i2=md2;i2>=0;i2--){
+      var z2=field.zero();
+      var a2=i2<polyA.coeffs.length?polyA.coeffs[i2]:z2;
+      var b2=i2<polyB.coeffs.length?polyB.coeffs[i2]:z2;
+      var d2=field.sub(a2,b2);
+      pushStack('deg '+i2,'align');
+      step(S.ALIGN,'tm','q₈: Align at degree '+fH(i2)+'.');
+      step(S.ARITH,'tm','q₉: a['+i2+']='+fV(a2)+', b['+i2+']='+fV(b2)+'. Subtract.');
+      step(S.REDUCE,'tm','q₁₀: '+fV(a2)+' − '+fV(b2)+' = '+fH(field.fmt(d2))+'.');
+      step(S.BORROW,'tm','q₁₂: No borrow. Write '+fH(field.fmt(d2))+' → T₃['+i2+'].');
+      popStack();
+    }
+    result=polyA.sub(polyB);
+
+  // ── MUL ──
+  }else if(op==='mul'){
+    tr(S.ARITH,'aᵢ','aᵢ','R',S.PARTIAL,'Outer loop: fix i from P');
+    tr(S.PARTIAL,'bⱼ','aᵢ·bⱼ','R',S.ACCUM,'Inner: multiply aᵢ·bⱼ');
+    tr(S.ACCUM,'acc','acc+prod','R',S.PARTIAL,'Accumulate into result[i+j]');
+    tr(S.PARTIAL,'B','B','L',S.ARITH,'Inner done: next i');
+    tr(S.ARITH,'B','B','—',S.NORM,'All pairs → normalize');
+    for(var i3=polyA.degree();i3>=0;i3--){
+      pushStack('i='+i3,'outer');
+      step(S.ARITH,'tm','q₉: Outer i='+fH(i3)+'. a['+i3+']='+fV(polyA.coeffs[i3])+'.');
+      for(var j3=polyB.degree();j3>=0;j3--){
+        if(field.isZero(polyA.coeffs[i3])||field.isZero(polyB.coeffs[j3]))continue;
+        var p3=field.mul(polyA.coeffs[i3],polyB.coeffs[j3]);
+        pushStack('j='+j3,'inner');
+        step(S.PARTIAL,'tm','q₁₄: b['+j3+']='+fV(polyB.coeffs[j3])+'. Product='+fH(field.fmt(p3))+'.');
+        step(S.ACCUM,'tm','q₁₃: Accumulate '+fH(field.fmt(p3))+' → T₃['+fH(i3+j3)+'].');
+        popStack();
+      }
+      popStack();
+    }
+    result=polyA.mul(polyB);
+
+  // ── DIV / MOD ──
+  }else if(op==='div'||op==='mod'){
+    tr(S.DIV_A,'rem','rem','R',S.DIV_Q,'Align to leading term of rem');
+    tr(S.DIV_Q,'lc_r,lc_d','qc','—',S.DIV_S,'qc = lc(rem)÷lc(div)');
+    tr(S.DIV_S,'qc·div','sub','L',S.DIV_A,'Subtract qc·divisor');
+    tr(S.DIV_A,'deg<','B','—',S.DIV_R,'deg(rem)<deg(div): stop');
+    tr(S.DIV_R,'ok','ok','—',S.NORM,'Remainder final → normalize');
+    var rem=new Poly(polyA.coeffs.slice(),field);
+    var qc=[];
+    for(var k=0;k<Math.max(0,polyA.degree()-polyB.degree()+1);k++)qc.push(field.zero());
+    var it=0;
+    while(!rem.isZero()&&rem.degree()>=polyB.degree()&&it<50){
+      it++;
+      var dd=rem.degree()-polyB.degree();
+      var c=field.div(rem.leadCoeff(),polyB.leadCoeff());
+      if(c===null){step(S.ERR,'error','q_err: Division failed — inverse does not exist.');break;}
+      qc[dd]=c;
+      pushStack('step '+it,'div');
+      step(S.DIV_A,'tm','q₁₅: Step '+it+'. rem='+fP(rem)+'.');
+      step(S.DIV_Q,'tm','q₁₇: qc='+fV(rem.leadCoeff())+'÷'+fV(polyB.leadCoeff())+' = '+fH(field.fmt(c))+'·x^'+dd+'.');
+      var sub2=[];
+      for(var k2=0;k2<dd+polyB.coeffs.length;k2++)sub2.push(field.zero());
+      for(var si=0;si<=polyB.degree();si++)sub2[si+dd]=field.mul(c,polyB.coeffs[si]);
+      var subP=new Poly(sub2,field);
+      step(S.DIV_S,'tm','q₁₆: Subtract '+fP(subP)+'.');
+      rem=rem.sub(subP);
+      step(S.DIV_R,'tm','q₁₈: New rem: '+fP(rem)+'.');
+      popStack();
+    }
+    var quot=new Poly(qc,field);
+    result=op==='mod'?rem:quot;
+    resultMeta=op==='div'?'Remainder: '+rem.toString():'Quotient: '+quot.toString();
+
+  // ── GCD ──
+  }else if(op==='gcd'){
+    tr(S.GCD_A,'a,b','a,b','—',S.GCD_B,'Load (a,b)');
+    tr(S.GCD_B,'a,b','b,a mod b','—',S.GCD_A,'(a,b)←(b, a mod b)');
+    tr(S.GCD_A,'b=0','a','—',S.GCD_N,'b=0: a is GCD');
+    tr(S.GCD_N,'a','monic(a)','—',S.NORM,'Normalize monic');
+    var ga=polyA,gb=polyB,git=0;
+    while(!gb.isZero()&&git<20){
+      git++;
+      pushStack('a='+ga.toString().substring(0,8),'GCD');
+      step(S.GCD_A,'tm','q₁₉: Step '+git+'. a='+fP(ga)+', b='+fP(gb)+'.');
+      step(S.GCD_B,'tm','q₂₀: Computing a mod b.');
+      var gr=ga.divmod(gb);
+      if(!gr){popStack();break;}
+      step(S.GCD_B,'tm','q₂₀: a mod b='+fP(gr[1])+'. (a,b)←(b, a mod b).');
+      popStack();
+      var tmp=gb;gb=gr[1];ga=tmp;
+    }
+    pushStack('GCD found','q₂₁');
+    step(S.GCD_N,'tm','q₂₁: GCD='+fP(ga)+'. Normalizing to monic.');
+    popStack();
+    result=polyA.gcd(polyB);
+
+  // ── DIFF ──
+  }else if(op==='diff'){
+    tr(S.DIFF,'cxⁿ(n>0)','n·c·xⁿ⁻¹','R',S.DIFF_W,'Power rule');
+    tr(S.DIFF,'c(n=0)','0','R',S.DIFF_W,'Constant → 0');
+    tr(S.DIFF_W,'res','res','R',S.DIFF,'Write term, advance');
+    tr(S.DIFF,'B','B','—',S.NORM,'Done → normalize');
+    for(var di=polyA.coeffs.length-1;di>=0;di--){
+      var dc=polyA.coeffs[di];
+      pushStack('x^'+di,'diff');
+      step(S.DIFF,'tm','q₂₂: Term x^'+di+'. Coeff='+fV(dc)+'.');
+      if(di===0){
+        step(S.DIFF_W,'tm','q₂₃: Constant → 0. Write '+fH('0')+'.');
+      }else{
+        var dni=field.type==='Q'?[di,1]:di;
+        var dnc=field.mul(dc,dni);
+        step(S.DIFF_W,'tm','q₂₃: '+fH(di)+'×'+fV(dc)+' = '+fH(field.fmt(dnc))+'·x^'+(di-1)+'. Write.');
+      }
+      popStack();
+    }
+    result=polyA.differentiate();
+
+  // ── INT ──
+  }else if(op==='int'){
+    tr(S.INT,'cxⁿ','(c/n+1)xⁿ⁺¹','R',S.INT_W,'Reverse power rule');
+    tr(S.INT_W,'res','res','R',S.INT,'Write, advance');
+    tr(S.INT,'B','C','R',S.NORM,'Append constant C');
+    for(var ii=polyA.coeffs.length-1;ii>=0;ii--){
+      var ic=polyA.coeffs[ii],n1=ii+1;
+      var idv=field.type==='Q'?[n1,1]:n1;
+      var inc=field.div(ic,idv);
+      pushStack('x^'+ii,'int');
+      step(S.INT,'tm','q₂₄: Term x^'+ii+'. Coeff='+fV(ic)+'. Divide by '+fH(n1)+'.');
+      step(S.INT_W,'tm','q₂₅: Result='+fH(inc!==null?field.fmt(inc):'?')+'·x^'+n1+'. Write.');
+      popStack();
+    }
+    pushStack('C','const');
+    step(S.INT,'tm','q₂₄: Append constant '+fH('C')+'.');
+    popStack();
+    result=polyA.integrate();
+    resultMeta='+ C (constant of integration)';
+  }
+
+  // ── Normalize & Output ──
+  pushStack('norm','q₂₆');
+  step(S.NORM,'tm','q₂₆: Normalizing T₃. Scanning from highest degree.');
+  tr(S.NORM,'0(lead)','B','L',S.STRIP,'Leading zero → strip');
+  tr(S.STRIP,'0','B','L',S.STRIP,'Strip zero cell');
+  tr(S.STRIP,'nz','nz','—',S.WRITE,'Non-zero → write');
+  step(S.STRIP,'tm','q₂₇: Stripping zeros. Result: '+fP(result||new Poly([field.zero()],field))+'.');
+  popStack();
+  pushStack('write','q₂₈');
+  step(S.WRITE,'tm','q₂₈: Writing output: '+fP(result||new Poly([field.zero()],field))+'.');
+  tr(S.WRITE,'cᵢ','cᵢ','R',S.WRITE,'Write coeff, move right');
+  tr(S.WRITE,'B','B','—',S.ACCEPT,'Done → ACCEPT');
+  popStack();
+  step(S.ACCEPT,'result','<strong>q₂₉ ACCEPT.</strong> TM halts. Result: '+fP(result||new Poly([field.zero()],field))+'.');
+
+  return{steps:steps,stacks:stacks,trans:trans,result:result,resultMeta:resultMeta};
+}
+
+// ── UI ────────────────────────────────────────
+var curField=new Field('R'),curOp='add',timer=null;
+var simSteps=[],simStacks=[],simTrans=[],stepIdx=0;
+
+function setField(type,btn){
+  curField=new Field(type);
+  document.querySelectorAll('.ftab').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  var lbl=type==='Q'?'ℚ':type==='R'?'ℝ':'ℤ';
+  document.getElementById('info-field').textContent=lbl;
+  document.getElementById('info-field2').textContent=lbl;
+}
+function setOp(op,btn){
+  curOp=op;
+  document.querySelectorAll('.op-btn').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  var needsB=['add','sub','mul','div','mod','gcd'].indexOf(op)>=0;
+  document.getElementById('poly-b-group').style.display=needsB?'':'none';
+  var labels={mod:'Modulus M(x)',div:'Divisor D(x)',gcd:'Q(x)'};
+  document.getElementById('poly-b-label').textContent=labels[op]||'Q(x)';
+  document.getElementById('info-op').textContent=op;
+  document.getElementById('info-op2').textContent=op;
+}
+function loadEx(type){
+  var EX={
+    mod:{op:'mod',a:'x^2+2x+1',b:'x^2+1',f:'Q'},
+    gcd:{op:'gcd',a:'x^3-1',b:'x^2-1',f:'Q'},
+    diff:{op:'diff',a:'x^4-3x^2+2x',b:'',f:'R'},
+    int:{op:'int',a:'3x^2+2x+1',b:'',f:'Q'},
+    mul:{op:'mul',a:'2x^2+3x+4',b:'x+5',f:'Q'},
+    div:{op:'div',a:'x^3-1',b:'x-1',f:'Q'}
+  };
+  var ex=EX[type];if(!ex)return;
+  document.getElementById('poly-a').value=ex.a;
+  document.getElementById('poly-b').value=ex.b||'';
+  curField=new Field(ex.f);
+  var lbl=ex.f==='Q'?'ℚ':ex.f==='R'?'ℝ':'ℤ';
+  document.querySelectorAll('.ftab').forEach(function(b){
+    b.classList.remove('active');
+    if(b.textContent.trim()===lbl)b.classList.add('active');
+  });
+  document.querySelectorAll('.op-btn').forEach(function(b){
+    b.classList.remove('active');
+    if((b.getAttribute('onclick')||'').indexOf("'"+ex.op+"'")>=0)b.classList.add('active');
+  });
+  curOp=ex.op;
+  document.getElementById('poly-b-group').style.display=
+    ['add','sub','mul','div','mod','gcd'].indexOf(ex.op)>=0?'':'none';
+  document.getElementById('info-field').textContent=lbl;
+  document.getElementById('info-field2').textContent=lbl;
+  document.getElementById('info-op').textContent=ex.op;
+  document.getElementById('info-op2').textContent=ex.op;
+}
+function compute(){
+  if(timer){clearInterval(timer);timer=null;}
+  var pA,pB;
+  try{pA=parsePoly(document.getElementById('poly-a').value||'0',curField);}
+  catch(e){alert('Error in P(x): '+e.message);return;}
+  var needsB=['add','sub','mul','div','mod','gcd'].indexOf(curOp)>=0;
+  if(needsB){
+    try{pB=parsePoly(document.getElementById('poly-b').value||'0',curField);}
+    catch(e){alert('Error in Q(x): '+e.message);return;}
+  }
+  var sim=simulate(curOp,pA,pB,curField);
+  simSteps=sim.steps;simStacks=sim.stacks;simTrans=sim.trans;stepIdx=0;
+  var rb=document.getElementById('result-banner');
+  if(sim.result){
+    document.getElementById('result-poly').textContent=sim.result.toString();
+    document.getElementById('result-meta').textContent=sim.resultMeta||'';
+    rb.classList.add('visible');
+  }else{rb.classList.remove('visible');}
+  renderStates(null);renderTrans(-1);renderStack([{label:'⊥',tag:'Z₀'}]);
+  document.getElementById('step-ctr').textContent='Steps: 0/'+simSteps.length;
+  ['info-visited','info-vis2','info-steps'].forEach(function(id){
+    document.getElementById(id).textContent='0';
+  });
+  document.getElementById('curr-state').textContent='q₀';
+  document.getElementById('info-active').textContent='q₀';
+
+  var slider=document.getElementById('speed-slider');
+  function delay(){return 1050-parseInt(slider.value);}
+  function tick(){
+    if(stepIdx>=simSteps.length){clearInterval(timer);timer=null;return;}
+    var s=simSteps[stepIdx];
+    var stk=simStacks[stepIdx];
+    renderStates(s.state);
+    renderStack(stk);
+    renderTrans(stepIdx<simTrans.length?stepIdx:-1);
+    document.getElementById('curr-state').textContent=s.state;
+    document.getElementById('step-ctr').textContent='Steps: '+(stepIdx+1)+'/'+simSteps.length;
+    var visited=new Set(simSteps.slice(0,stepIdx+1).map(function(x){return x.state;}));
+    document.getElementById('info-visited').textContent=visited.size;
+    document.getElementById('info-vis2').textContent=visited.size;
+    document.getElementById('info-steps').textContent=stepIdx+1;
+    document.getElementById('info-active').textContent=s.state;
+    stepIdx++;
+  }
+  timer=setInterval(tick,delay());
+  slider.oninput=function(){clearInterval(timer);timer=setInterval(tick,delay());};
+}
+function renderStates(active){
+  var el=document.getElementById('state-display');
+  el.innerHTML='';
+  var visited=new Set(simSteps.slice(0,stepIdx).map(function(s){return s.state;}));
+  ALL_STATES.forEach(function(s,i){
+    var node=document.createElement('div');
+    node.className='state-node'
+      +(s===active?' active':'')
+      +(visited.has(s)&&s!==active?' visited':'')
+      +(s===S.ACCEPT?' accept':'')
+      +(s===S.ERR?' err-s':'');
+    node.title=STATE_DESC[s]||s;
+    node.textContent=s;
+    el.appendChild(node);
+    if(i<ALL_STATES.length-1){
+      var arr=document.createElement('span');
+      arr.className='state-arrow';arr.textContent='·';
+      el.appendChild(arr);
+    }
+  });
+  var lg=document.getElementById('state-legend');
+  lg.innerHTML='';
+  ALL_STATES.forEach(function(s){
+    var d=document.createElement('div');
+    d.className='sleg';
+    var cls=s===S.ACCEPT?'acc':s===S.ERR?'err':'';
+    d.innerHTML='<span class="'+cls+'">'+s+'</span> '+(STATE_DESC[s]||'');
+    lg.appendChild(d);
+  });
+}
+function renderTrans(activeIdx){
+  var tb=document.getElementById('trans-tbody');
+  tb.innerHTML='';
+  if(!simTrans.length){
+    tb.innerHTML='<tr><td colspan="6" style="color:var(--dim);text-align:center;padding:1.8rem">Run a computation to populate</td></tr>';
+    return;
+  }
+  simTrans.forEach(function(r,i){
+    var row=document.createElement('tr');
+    if(i===activeIdx)row.className='hi';
+    row.innerHTML='<td>'+r.state+'</td><td>'+r.read+'</td><td>'+r.write+'</td><td>'+r.move+'</td><td>'+r.next+'</td><td>'+r.desc+'</td>';
+    tb.appendChild(row);
+  });
+  if(activeIdx>=0){
+    var rows=tb.querySelectorAll('tr');
+    if(rows[activeIdx])rows[activeIdx].scrollIntoView({block:'nearest'});
+  }
+}
+function renderStack(sf){
+  var el=document.getElementById('pda-stack');
+  el.innerHTML='';
+  var items=(sf&&sf.length>0)?sf:[{label:'⊥',tag:'Z₀'}];
+  // render bottom to top — flex-direction:column-reverse means first child = top visually
+  // So we iterate array in order (index 0 = bottom), flex-direction-reverse shows top at top
+  for(var i=0;i<items.length;i++){
+    var item=items[i];
+    var f=document.createElement('div');
+    // top of stack = last element in array
+    f.className='stk-frame'+(i===items.length-1?' top':'');
+    f.innerHTML='<span>'+(item.label||item)+'</span><span class="stk-tag">'+(item.tag||'')+'</span>';
+    el.appendChild(f);
+  }
+}
+function switchTab(tab,btn){
+  document.querySelectorAll('.out-tab').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+// Init
+renderStates(null);
+renderStack([{label:'⊥',tag:'Z₀'}]);
+</script>
+</body>
+</html>
